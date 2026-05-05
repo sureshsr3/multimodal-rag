@@ -1,0 +1,25 @@
+# Core ML
+torch>=2.2.0
+torchvision>=0.17.0
+transformers>=4.40.0
+openai-whisper>=20231117
+accelerate>=0.30.0
+
+# Ingestion
+imageio-ffmpeg>=0.5.1
+pdfplumber>=0.11.0
+PyMuPDF>=1.24.0
+pytesseract>=0.3.10
+easyocr>=1.7.1
+Pillow>=10.3.0
+numpy>=1.26.0
+
+# Vector store (in-memory on HF Spaces)
+chromadb>=0.5.0
+
+# HF Inference API (replaces Ollama)
+huggingface_hub>=0.23.0
+
+# Frontend
+streamlit>=1.35.0
+requests>=2.32.0

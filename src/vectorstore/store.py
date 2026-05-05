@@ -16,12 +16,22 @@ import numpy as np
 class MultimodalVectorStore:
     COLLECTION_NAME = "multimodal_rag"
 
-    def __init__(self, persist_dir: str | Path = "./data/chroma_db"):
-        self.persist_dir = str(persist_dir)
-        self.client = chromadb.PersistentClient(
-            path=self.persist_dir,
-            settings=Settings(anonymized_telemetry=False),
-        )
+    def __init__(self, persist_dir: str | Path | None = "./data/chroma_db"):
+        """
+        persist_dir=None  → ephemeral in-memory store (HF Spaces, testing)
+        persist_dir=path  → persistent ChromaDB on disk (local / Docker)
+        """
+        if persist_dir is None:
+            self.persist_dir = None
+            self.client = chromadb.EphemeralClient(
+                settings=Settings(anonymized_telemetry=False),
+            )
+        else:
+            self.persist_dir = str(persist_dir)
+            self.client = chromadb.PersistentClient(
+                path=self.persist_dir,
+                settings=Settings(anonymized_telemetry=False),
+            )
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
