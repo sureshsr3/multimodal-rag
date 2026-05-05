@@ -1,0 +1,50 @@
+version: "3.9"
+
+# ── How to run ──────────────────────────────────────────────────────────────
+# 1. Install & start Ollama on your host: https://ollama.com/download
+# 2. Pull the model:  ollama pull phi3
+# 3. Start the stack: docker compose -f docker/docker-compose.yml up --build
+# ────────────────────────────────────────────────────────────────────────────
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # LLM — Ollama runs on the HOST machine, not inside Docker
+      # On Linux/Mac use host.docker.internal (Docker Desktop) or host-gateway
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      # Storage
+      - UPLOAD_DIR=/app/data/uploads
+      - CHROMA_DIR=/app/data/chroma_db
+      - ENCODER_CHECKPOINT=/app/checkpoints/encoder.pt
+      - TOP_K=${TOP_K:-5}
+    volumes:
+      - ../data:/app/data
+      - ../checkpoints:/app/checkpoints
+    extra_hosts:
+      # Allows the container to reach Ollama on the host machine
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

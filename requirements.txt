@@ -1,0 +1,39 @@
+# Core ML
+torch>=2.2.0
+torchvision>=0.17.0
+torchaudio>=2.2.0
+transformers>=4.40.0
+timm>=1.0.3
+openai-whisper>=20231117
+accelerate>=0.30.0
+
+# Ingestion
+imageio-ffmpeg>=0.5.1
+pdfplumber>=0.11.0
+PyMuPDF>=1.24.0
+pytesseract>=0.3.10
+easyocr>=1.7.1
+Pillow>=10.3.0
+numpy>=1.26.0
+
+# Vector Store
+chromadb>=0.5.0
+
+# API
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+pydantic>=2.7.0
+
+# Frontend
+streamlit>=1.35.0
+requests>=2.32.0
+
+# Training
+tqdm>=4.66.0
+
+# Env loading
+python-dotenv>=1.0.0
+
+# PDF generation (for generate_pdf.py)
+reportlab>=4.0.0

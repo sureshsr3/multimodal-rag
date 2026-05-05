@@ -1,0 +1,48 @@
+# ── Secrets ──────────────────────────────────────────────────────────────────
+.env
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Data (never commit user uploads or the vector DB) ────────────────────────
+data/uploads/
+data/chroma_db/
+
+# ── Model checkpoints (large binary files) ───────────────────────────────────
+*.pt
+*.pth
+checkpoints/
+
+# ── Generated files ───────────────────────────────────────────────────────────
+*.pdf
+generate_pdf.py
+
+# ── Testing / linting ────────────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
