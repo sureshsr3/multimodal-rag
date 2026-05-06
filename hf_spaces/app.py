@@ -30,7 +30,7 @@ from src.rag.retriever import RetrievedChunk
 
 # ── Config ───────────────────────────────────────────────────────────────────
 HF_TOKEN    = os.environ.get("HF_TOKEN", "")
-LLM_MODEL   = os.environ.get("HF_LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+LLM_MODEL   = os.environ.get("HF_LLM_MODEL", "HuggingFaceH4/zephyr-7b-beta")
 TOP_K       = int(os.environ.get("TOP_K", "5"))
 
 SYSTEM_PROMPT = """You are a question-answering assistant. You only answer from the CONTEXT provided.
@@ -191,32 +191,28 @@ def _stream_answer(query: str, chunks: list[RetrievedChunk], history: list[dict]
 
     context_block = _build_context(chunks)
 
-    history_block = ""
-    if history:
-        turns = [
-            f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
-            for m in history
-        ]
-        history_block = "\n\nPrevious conversation:\n" + "\n".join(turns)
+    # Build messages list for chat_completion API
+    messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nContext:\n\n{context_block}"}]
 
-    full_prompt = (
-        f"{SYSTEM_PROMPT}\n\n"
-        f"Context:\n\n{context_block}"
-        f"{history_block}\n\n"
-        f"---\n\nUser: {query}\n\nAssistant:"
-    )
+    # Inject previous conversation turns
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # Current user query
+    messages.append({"role": "user", "content": query})
 
     client = InferenceClient(token=HF_TOKEN)
     try:
-        for token in client.text_generation(
-            full_prompt,
+        for chunk in client.chat_completion(
+            messages=messages,
             model=LLM_MODEL,
             stream=True,
-            max_new_tokens=512,
+            max_tokens=512,
             temperature=0.2,
-            repetition_penalty=1.1,
         ):
-            yield token
+            token = chunk.choices[0].delta.content or ""
+            if token:
+                yield token
     except Exception as exc:
         yield f"\n\n[ERROR] {exc}"
 

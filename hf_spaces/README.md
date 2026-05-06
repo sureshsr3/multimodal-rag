@@ -19,7 +19,7 @@ Add your Hugging Face token as a **Space secret**:
 - Key: `HF_TOKEN`
 - Value: your token from [hf.co/settings/tokens](https://huggingface.co/settings/tokens)
 
-Optionally set `HF_LLM_MODEL` (default: `mistralai/Mistral-7B-Instruct-v0.3`).
+Optionally set `HF_LLM_MODEL` (default: `HuggingFaceH4/zephyr-7b-beta`).
 
 ## Note
 
