@@ -18,7 +18,7 @@ numpy>=1.26.0
 # Vector store (in-memory on HF Spaces)
 chromadb>=0.5.0
 
-# HF Inference API (replaces Ollama)
+# HF hub (model downloads — already a transformers dependency, listed explicitly)
 huggingface_hub>=0.23.0
 
 # Frontend

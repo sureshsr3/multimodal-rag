@@ -1,12 +1,12 @@
 """
 Multimodal RAG — Hugging Face Spaces deployment
 ================================================
-Single Streamlit app — no FastAPI, no Ollama.
-LLM is served via the free HF Inference API.
+Single Streamlit app — no FastAPI, no Ollama, no Inference API.
+LLM (TinyLlama-1.1B) is loaded directly on the Space CPU using transformers.
 Vector store is in-memory (resets when the Space restarts).
 
-Required Spaces secret:  HF_TOKEN  (your Hugging Face token)
-Optional:                HF_LLM_MODEL  (default: mistralai/Mistral-7B-Instruct-v0.3)
+Optional Spaces secret:  HF_TOKEN  (speeds up model downloads, not required)
+Optional:                HF_LLM_MODEL  (default: TinyLlama/TinyLlama-1.1B-Chat-v1.0)
 """
 from __future__ import annotations
 import os
@@ -29,21 +29,14 @@ from src.rag import MultimodalRetriever
 from src.rag.retriever import RetrievedChunk
 
 # ── Config ───────────────────────────────────────────────────────────────────
-HF_TOKEN    = os.environ.get("HF_TOKEN", "")
-LLM_MODEL   = os.environ.get("HF_LLM_MODEL", "HuggingFaceH4/zephyr-7b-beta")
+HF_TOKEN    = os.environ.get("HF_TOKEN", "")          # optional — speeds up downloads
+LLM_MODEL   = os.environ.get("HF_LLM_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
 TOP_K       = int(os.environ.get("TOP_K", "5"))
 
-SYSTEM_PROMPT = """You are a question-answering assistant. You only answer from the CONTEXT provided.
-
-RULES:
-1. Use ONLY the information in the CONTEXT. Never add facts from your training.
-2. For IMAGE DESCRIPTION context: report exactly what is described.
-3. For TEXT FROM IMAGE context: use only the extracted text.
-4. For AUDIO TRANSCRIPT context: use only what was said in the recording.
-5. If context is missing details the user asks about, say "The uploaded content does not mention that."
-6. Never guess, invent, or expand beyond what the context says.
-7. Write naturally — do not mention "context", "chunk", or "AI" in your answer.
-8. End your answer with: Sources: <filename(s)>"""
+SYSTEM_PROMPT = """Answer the user's question using ONLY the text provided below in the CONTEXT section.
+Do not use any outside knowledge. Do not explain what you are doing. Do not repeat these instructions.
+If the context does not contain the answer, say: "The uploaded files do not mention that."
+End your answer with: Sources: <filename>"""
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -173,48 +166,70 @@ def _build_context(chunks: list[RetrievedChunk]) -> str:
     return "\n\n---\n\n".join(sections)
 
 
-def _stream_answer(query: str, chunks: list[RetrievedChunk], history: list[dict]) -> Iterator[str]:
-    """Stream tokens from the HF Inference API."""
-    if not HF_TOKEN:
-        yield (
-            "⚠️ No HF_TOKEN found.\n\n"
-            "Add your Hugging Face token as a Space secret named `HF_TOKEN` "
-            "and restart the Space."
-        )
-        return
+def _load_llm():
+    """Load TinyLlama into session state (once per session)."""
+    if "llm_pipe" not in st.session_state:
+        import threading
+        from transformers import pipeline, AutoTokenizer
+        with st.spinner(f"Loading LLM `{LLM_MODEL}` — first launch ~2 min…"):
+            tok  = AutoTokenizer.from_pretrained(LLM_MODEL, token=HF_TOKEN or None)
+            pipe = pipeline(
+                "text-generation",
+                model=LLM_MODEL,
+                tokenizer=tok,
+                torch_dtype=torch.float32,   # CPU-safe
+                device="cpu",
+            )
+        st.session_state.llm_pipe      = pipe
+        st.session_state.llm_tokenizer = tok
 
-    try:
-        from huggingface_hub import InferenceClient
-    except ImportError:
-        yield "⚠️ `huggingface_hub` not installed. Check requirements.txt."
-        return
+
+def _stream_answer(query: str, chunks: list[RetrievedChunk], history: list[dict]) -> Iterator[str]:
+    """
+    Stream tokens from TinyLlama running locally on the Space CPU.
+    No external API, no provider, no token required.
+    Uses transformers TextIteratorStreamer for live token output.
+    """
+    import threading
+    from transformers import TextIteratorStreamer
+
+    _load_llm()
+    pipe      = st.session_state.llm_pipe
+    tokenizer = st.session_state.llm_tokenizer
 
     context_block = _build_context(chunks)
 
-    # Build messages list for chat_completion API
-    messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nContext:\n\n{context_block}"}]
-
-    # Inject previous conversation turns
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for msg in history:
         messages.append({"role": msg["role"], "content": msg["content"]})
+    # Embed context directly in the user turn so small models focus on it
+    messages.append({
+        "role": "user",
+        "content": f"CONTEXT:\n{context_block}\n\nQUESTION: {query}"
+    })
 
-    # Current user query
-    messages.append({"role": "user", "content": query})
+    # Apply the model's built-in chat template (handles <|system|>, <|user|> etc.)
+    prompt = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
 
-    client = InferenceClient(token=HF_TOKEN)
-    try:
-        for chunk in client.chat_completion(
-            messages=messages,
-            model=LLM_MODEL,
-            stream=True,
-            max_tokens=512,
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+    def _generate():
+        pipe(
+            prompt,
+            max_new_tokens=512,
             temperature=0.2,
-        ):
-            token = chunk.choices[0].delta.content or ""
-            if token:
-                yield token
-    except Exception as exc:
-        yield f"\n\n[ERROR] {exc}"
+            do_sample=True,
+            repetition_penalty=1.1,
+            streamer=streamer,
+        )
+
+    thread = threading.Thread(target=_generate, daemon=True)
+    thread.start()
+
+    for token in streamer:
+        yield token
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
