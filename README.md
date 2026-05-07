@@ -284,7 +284,7 @@ pytest tests/ -v
 - **Ollama** — local LLM serving (phi3, llama3, tinyllama)
 - **imageio-ffmpeg** — bundled ffmpeg (no system install needed)
 - **pytesseract + EasyOCR** — OCR for text images
-
+ 
 ---
 
 ## License
